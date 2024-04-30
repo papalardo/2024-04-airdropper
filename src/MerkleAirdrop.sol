@@ -8,6 +8,7 @@ import { IERC20, SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/Saf
 contract MerkleAirdrop is Ownable {
     using SafeERC20 for IERC20;
 
+    error MerkleAirdrop__AlreadyClaimed();
     error MerkleAirdrop__InvalidFeeAmount();
     error MerkleAirdrop__InvalidProof();
     error MerkleAirdrop__TransferFailed();
@@ -15,6 +16,7 @@ contract MerkleAirdrop is Ownable {
     uint256 private constant FEE = 1e9;
     IERC20 private immutable i_airdropToken;
     bytes32 private immutable i_merkleRoot;
+    mapping(address => bool) public hasClaimed;
 
     event Claimed(address account, uint256 amount);
     event MerkleRootUpdated(bytes32 newMerkleRoot);
@@ -31,10 +33,14 @@ contract MerkleAirdrop is Ownable {
         if (msg.value != FEE) {
             revert MerkleAirdrop__InvalidFeeAmount();
         }
+        if (hasClaimed[to]) {
+            revert MerkleAirdrop__AlreadyClaimed();
+        }
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(account, amount))));
         if (!MerkleProof.verify(merkleProof, i_merkleRoot, leaf)) {
             revert MerkleAirdrop__InvalidProof();
         }
+        hasClaimed[to] = true;
         emit Claimed(account, amount);
         i_airdropToken.safeTransfer(account, amount);
     }
